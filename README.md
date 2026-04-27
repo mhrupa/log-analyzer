@@ -27,6 +27,14 @@ For WSL/local development, add values to `~/.bashrc` or `~/.zshrc`:
 export JIRA_BASE_URL="https://your-company.atlassian.net"
 export JIRA_TOKEN=""
 export GITHUB_TOKEN=""
+export JIRA_MCP_ENABLED="false"
+export JIRA_MCP_URL=""
+export JIRA_MCP_TOKEN="$JIRA_TOKEN"
+export JIRA_MCP_ISSUE_TOOL="jira_get_issue"
+export GITHUB_MCP_ENABLED="false"
+export GITHUB_MCP_URL=""
+export GITHUB_MCP_TOKEN="$GITHUB_TOKEN"
+export GITHUB_MCP_SEARCH_TOOL="github_search_code"
 export COPILOT_TOKEN=""
 export COPILOT_API_URL="https://your-copilot-compatible-gateway.example.com/v1/chat/completions"
 export COPILOT_MODEL="gpt-4.1"
@@ -47,6 +55,31 @@ The app stores resumable RCA context in a local H2 database at `integration-serv
 Stored context includes analysis sessions, tool steps, evidence, checkpoints, and Copilot LLM prompt/response logs. It does not store credentials.
 
 `COPILOT_API_URL` must point to your organization's Copilot-compatible chat-completions gateway. The application sends an OpenAI-style request body with `model` and `messages`, and stores the prompt/response/error as an `LlmInteraction` for resume and audit.
+
+## MCP Integration
+
+V1 supports Jira and GitHub through configurable MCP servers. When enabled, the analyzer calls the configured MCP server with JSON-RPC `tools/call` requests and stores the returned context as analysis evidence.
+
+Required MCP settings:
+
+```bash
+export JIRA_MCP_ENABLED="true"
+export JIRA_MCP_URL="http://localhost:9001/mcp"
+export JIRA_MCP_TOKEN="$JIRA_TOKEN"
+export JIRA_MCP_ISSUE_TOOL="jira_get_issue"
+
+export GITHUB_MCP_ENABLED="true"
+export GITHUB_MCP_URL="http://localhost:9002/mcp"
+export GITHUB_MCP_TOKEN="$GITHUB_TOKEN"
+export GITHUB_MCP_SEARCH_TOOL="github_search_code"
+```
+
+Tool argument contracts used by this app:
+
+- Jira issue tool receives `issueKey` and `baseUrl`.
+- GitHub search tool receives `repository`, `query`, `environment`, and `region`.
+
+If your MCP server exposes different tool names, set `JIRA_MCP_ISSUE_TOOL` and `GITHUB_MCP_SEARCH_TOOL` to match that server. If MCP is disabled, the app keeps using the current placeholder planning evidence for Jira/GitHub.
 
 ## Run
 

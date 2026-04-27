@@ -25,6 +25,23 @@ loganalyzer:
     token: ${JIRA_TOKEN:}
   github:
     token: ${GITHUB_TOKEN:}
+  mcp:
+    jira:
+      enabled: ${JIRA_MCP_ENABLED:false}
+      url: ${JIRA_MCP_URL:}
+      token: ${JIRA_MCP_TOKEN:${JIRA_TOKEN:}}
+      issue-tool: ${JIRA_MCP_ISSUE_TOOL:jira_get_issue}
+      search-tool: ${JIRA_MCP_SEARCH_TOOL:}
+      file-tool: ${JIRA_MCP_FILE_TOOL:}
+      timeout-seconds: ${JIRA_MCP_TIMEOUT_SECONDS:30}
+    github:
+      enabled: ${GITHUB_MCP_ENABLED:false}
+      url: ${GITHUB_MCP_URL:}
+      token: ${GITHUB_MCP_TOKEN:${GITHUB_TOKEN:}}
+      issue-tool: ${GITHUB_MCP_ISSUE_TOOL:}
+      search-tool: ${GITHUB_MCP_SEARCH_TOOL:github_search_code}
+      file-tool: ${GITHUB_MCP_FILE_TOOL:github_get_file_contents}
+      timeout-seconds: ${GITHUB_MCP_TIMEOUT_SECONDS:30}
   copilot:
     token: ${COPILOT_TOKEN:}
     api-url: ${COPILOT_API_URL:}

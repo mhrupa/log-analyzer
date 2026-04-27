@@ -25,6 +25,8 @@ public class SystemController {
                 hasText(properties.jira().baseUrl()),
                 hasText(properties.jira().token()),
                 hasText(properties.github().token()),
+                properties.mcp().jira().enabled() && hasText(properties.mcp().jira().url()),
+                properties.mcp().github().enabled() && hasText(properties.mcp().github().url()),
                 hasText(properties.copilot().token()),
                 hasText(properties.copilot().apiUrl()),
                 properties.copilot().provider(),

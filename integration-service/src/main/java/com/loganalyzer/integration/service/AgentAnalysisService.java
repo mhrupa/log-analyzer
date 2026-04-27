@@ -6,6 +6,7 @@ import com.loganalyzer.integration.dto.AnalyzeResponse;
 import com.loganalyzer.integration.dto.CredentialsDto;
 import com.loganalyzer.integration.dto.EvidenceDto;
 import com.loganalyzer.integration.dto.LlmResult;
+import com.loganalyzer.integration.dto.McpToolResult;
 import com.loganalyzer.integration.model.AnalysisCheckpoint;
 import com.loganalyzer.integration.model.AnalysisEvidence;
 import com.loganalyzer.integration.model.AnalysisSession;
@@ -17,7 +18,9 @@ import com.loganalyzer.integration.repository.AnalysisSessionRepository;
 import com.loganalyzer.integration.repository.AnalysisStepRepository;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +33,7 @@ public class AgentAnalysisService {
     private final AnalysisEvidenceRepository evidenceRepository;
     private final AnalysisCheckpointRepository checkpointRepository;
     private final CopilotAgentService copilotAgentService;
+    private final McpClientService mcpClientService;
 
     public AgentAnalysisService(
             AccessService accessService,
@@ -38,7 +42,8 @@ public class AgentAnalysisService {
             AnalysisStepRepository stepRepository,
             AnalysisEvidenceRepository evidenceRepository,
             AnalysisCheckpointRepository checkpointRepository,
-            CopilotAgentService copilotAgentService) {
+            CopilotAgentService copilotAgentService,
+            McpClientService mcpClientService) {
         this.accessService = accessService;
         this.properties = properties;
         this.sessionRepository = sessionRepository;
@@ -46,6 +51,7 @@ public class AgentAnalysisService {
         this.evidenceRepository = evidenceRepository;
         this.checkpointRepository = checkpointRepository;
         this.copilotAgentService = copilotAgentService;
+        this.mcpClientService = mcpClientService;
     }
 
     @Transactional
@@ -95,9 +101,11 @@ public class AgentAnalysisService {
         List<AnalysisEvidence> evidence = new ArrayList<>();
         evidence.add(recordEvidence(session, "User input", "Problem statement", textOrDefault(session.getProblemStatement(), "No problem statement supplied."), 0.7));
         evidence.add(recordEvidence(session, "Direct logs", "User supplied logs", truncate(textOrDefault(session.getLogs(), "No direct logs supplied."), 1200), 0.6));
-        evidence.add(recordEvidence(session, "Jira", "Ticket context", collectJiraContext(session), 0.4));
+        CredentialsDto resolvedCredentials = accessService.mergeWithEnvironment(credentials);
+
+        evidence.add(recordEvidence(session, "Jira", "Ticket context", collectJiraContext(session, resolvedCredentials), 0.55));
         evidence.add(recordEvidence(session, "CloudWatch", "Logs query plan", collectCloudWatchContext(session), 0.4));
-        evidence.add(recordEvidence(session, "GitHub", "Repository inspection plan", collectGitHubContext(session), 0.4));
+        evidence.add(recordEvidence(session, "GitHub", "Repository inspection", collectGitHubContext(session, resolvedCredentials), 0.55));
 
         recordStep(session, "JIRA_READ", session.getJiraTicketId(), evidence.get(2).getContent());
         recordStep(session, "CLOUDWATCH_QUERY", session.getLogGroups(), evidence.get(3).getContent());
@@ -124,9 +132,9 @@ public class AgentAnalysisService {
                 "SUCCESS".equals(llmResult.status()) ? 0.75 : 0.35,
                 evidence.stream().map(AnalysisSessionMapper::toEvidence).toList(),
                 List.of(
-                        "Implement Jira ticket fetch and comment extraction.",
+                        "Point JIRA_MCP_URL to the Jira MCP server and configure JIRA_MCP_ISSUE_TOOL for your server.",
                         "Implement repeated CloudWatch Logs Insights calls with query IDs saved as steps.",
-                        "Implement repeated GitHub code search/file reads with references saved as evidence.",
+                        "Point GITHUB_MCP_URL to the GitHub MCP server and configure GITHUB_MCP_SEARCH_TOOL for your server.",
                         "Tune the Copilot-compatible prompt and response parser for your gateway schema."));
     }
 
@@ -138,9 +146,22 @@ public class AgentAnalysisService {
         stepRepository.save(new AnalysisStep(session, stepType, textOrDefault(inputSummary, "No input supplied."), outputSummary));
     }
 
-    private String collectJiraContext(AnalysisSession session) {
+    private String collectJiraContext(AnalysisSession session, CredentialsDto credentials) {
         if (!hasText(session.getJiraTicketId())) {
             return "No Jira ticket supplied. User-provided problem statement/logs are the primary context.";
+        }
+        if (properties.mcp().jira().enabled()) {
+            Map<String, Object> arguments = new LinkedHashMap<>();
+            arguments.put("issueKey", session.getJiraTicketId());
+            arguments.put("baseUrl", properties.jira().baseUrl());
+            McpToolResult result = mcpClientService.callTool(
+                    properties.mcp().jira(),
+                    firstText(credentials.jiraToken(), properties.mcp().jira().token()),
+                    properties.mcp().jira().issueTool(),
+                    arguments);
+            return result.success()
+                    ? result.content()
+                    : "Jira MCP call failed: " + result.error();
         }
         return "Jira ticket " + session.getJiraTicketId() + " would be fetched from " + properties.jira().baseUrl() + ".";
     }
@@ -151,15 +172,51 @@ public class AgentAnalysisService {
                 + " against " + logGroups + ". Each query/result will be persisted as an AnalysisStep.";
     }
 
-    private String collectGitHubContext(AnalysisSession session) {
+    private String collectGitHubContext(AnalysisSession session, CredentialsDto credentials) {
         if (!hasText(session.getRepositoryUrls())) {
             return "No repositories supplied for code cross-check.";
+        }
+        if (properties.mcp().github().enabled()) {
+            List<String> repositoryResults = new ArrayList<>();
+            for (String repositoryUrl : session.getRepositoryUrls().split("\\R+")) {
+                if (!hasText(repositoryUrl)) {
+                    continue;
+                }
+                Map<String, Object> arguments = new LinkedHashMap<>();
+                arguments.put("repository", repositoryUrl.trim());
+                arguments.put("query", buildCodeSearchQuery(session));
+                arguments.put("environment", session.getEnvironment());
+                arguments.put("region", session.getRegion());
+                McpToolResult result = mcpClientService.callTool(
+                        properties.mcp().github(),
+                        firstText(credentials.githubToken(), properties.mcp().github().token()),
+                        properties.mcp().github().searchTool(),
+                        arguments);
+                repositoryResults.add(repositoryUrl.trim() + "\n" + (result.success()
+                        ? result.content()
+                        : "GitHub MCP call failed: " + result.error()));
+            }
+            return repositoryResults.isEmpty()
+                    ? "No valid repository URLs supplied for GitHub MCP search."
+                    : String.join("\n\n", repositoryResults);
         }
         return "GitHub repositories queued for repeated code search/file inspection: " + session.getRepositoryUrls().replace("\n", ", ") + ".";
     }
 
+    private String buildCodeSearchQuery(AnalysisSession session) {
+        String source = firstText(session.getProblemStatement(), session.getLogs());
+        if (!hasText(source)) {
+            return firstText(session.getJiraTicketId(), "error exception failure");
+        }
+        return truncate(source.replaceAll("\\s+", " "), 240);
+    }
+
     private String textOrDefault(String value, String fallback) {
         return hasText(value) ? value : fallback;
+    }
+
+    private String firstText(String first, String second) {
+        return hasText(first) ? first : second;
     }
 
     private String truncate(String value, int maxLength) {

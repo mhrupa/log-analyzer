@@ -39,6 +39,9 @@ public class AccessService {
     }
 
     private AccessCheckDto checkJira(String token) {
+        if (properties.mcp().jira().enabled()) {
+            return checkMcpServer("Jira MCP", properties.mcp().jira(), token, "JIRA_MCP_URL", "JIRA_MCP_TOKEN or JIRA_TOKEN");
+        }
         if (!hasText(properties.jira().baseUrl())) {
             return new AccessCheckDto("Jira", "missing", "Set JIRA_BASE_URL before using Jira lookup.");
         }
@@ -66,10 +69,28 @@ public class AccessService {
     }
 
     private AccessCheckDto checkGitHub(String token) {
+        if (properties.mcp().github().enabled()) {
+            return checkMcpServer("GitHub MCP", properties.mcp().github(), token, "GITHUB_MCP_URL", "GITHUB_MCP_TOKEN or GITHUB_TOKEN");
+        }
         if (!hasText(token)) {
             return new AccessCheckDto("GitHub", "missing", "Provide a GitHub token or set GITHUB_TOKEN with repository read access.");
         }
         return new AccessCheckDto("GitHub", "configured", "GitHub token supplied for repository inspection.");
+    }
+
+    private AccessCheckDto checkMcpServer(
+            String name,
+            LogAnalyzerProperties.McpServer server,
+            String requestToken,
+            String urlVariable,
+            String tokenVariable) {
+        if (!hasText(server.url())) {
+            return new AccessCheckDto(name, "missing", "Set " + urlVariable + " before using this MCP server.");
+        }
+        if (!hasText(firstText(requestToken, server.token()))) {
+            return new AccessCheckDto(name, "missing", "Provide a token or set " + tokenVariable + ".");
+        }
+        return new AccessCheckDto(name, "configured", "MCP server configured at " + server.url() + ".");
     }
 
     private AccessCheckDto checkCopilot(String token) {
