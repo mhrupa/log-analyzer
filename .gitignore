@@ -6,5 +6,6 @@ __pycache__/
 target/
 .env
 .DS_Store
+data/
 integration-service/data/
 .github/java-upgrade/

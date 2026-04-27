@@ -1,0 +1,30 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run integration-service",
+      "type": "shell",
+      "command": "mvn",
+      "args": [
+        "-pl",
+        "integration-service",
+        "spring-boot:run"
+      ],
+      "group": "build",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Package integration-service",
+      "type": "shell",
+      "command": "mvn",
+      "args": [
+        "-pl",
+        "integration-service",
+        "package"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}
