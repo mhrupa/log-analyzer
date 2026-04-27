@@ -12,10 +12,11 @@ import com.loganalyzer.integration.repository.AnalysisEvidenceRepository;
 import com.loganalyzer.integration.repository.AnalysisSessionRepository;
 import com.loganalyzer.integration.repository.AnalysisStepRepository;
 import com.loganalyzer.integration.repository.LlmInteractionRepository;
-import jakarta.persistence.EntityNotFoundException;
 import java.util.List;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class AnalysisSessionService {
@@ -76,7 +77,7 @@ public class AnalysisSessionService {
     @Transactional(readOnly = true)
     public AnalysisSession getEntity(String sessionId) {
         return sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new EntityNotFoundException("Analysis session not found: " + sessionId));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Analysis session not found: " + sessionId));
     }
 
     private void applyInput(AnalysisSession session, AnalysisInputDto input) {
