@@ -1,0 +1,44 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: log-analyzer-integration-service
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+  datasource:
+    url: ${LOG_ANALYZER_DB_URL:jdbc:h2:file:./data/log-analyzer;AUTO_SERVER=TRUE}
+    username: ${LOG_ANALYZER_DB_USERNAME:sa}
+    password: ${LOG_ANALYZER_DB_PASSWORD:}
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  h2:
+    console:
+      enabled: ${LOG_ANALYZER_H2_CONSOLE:false}
+
+loganalyzer:
+  jira:
+    base-url: ${JIRA_BASE_URL:}
+    token: ${JIRA_TOKEN:}
+  github:
+    token: ${GITHUB_TOKEN:}
+  copilot:
+    token: ${COPILOT_TOKEN:}
+    api-url: ${COPILOT_API_URL:}
+    model: ${COPILOT_MODEL:gpt-4.1}
+    provider: ${COPILOT_PROVIDER:copilot-compatible}
+    timeout-seconds: ${COPILOT_TIMEOUT_SECONDS:60}
+  aws:
+    access-key-id: ${AWS_ACCESS_KEY_ID:}
+    secret-access-key: ${AWS_SECRET_ACCESS_KEY:}
+    session-token: ${AWS_SESSION_TOKEN:}
+    default-region: ${AWS_REGION:us-east-2}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
