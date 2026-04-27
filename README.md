@@ -54,6 +54,14 @@ Stored context includes analysis sessions, tool steps, evidence, checkpoints, an
 
 Maven builds React and copies `frontend/dist` into the Spring Boot static resources.
 
+From the repo root:
+
+```bash
+mvn -pl integration-service spring-boot:run
+```
+
+Or from the service module:
+
 ```bash
 cd integration-service
 JIRA_BASE_URL=https://your-company.atlassian.net mvn spring-boot:run
@@ -68,6 +76,11 @@ cd integration-service
 mvn package
 java -jar target/integration-service-0.1.0.jar
 ```
+
+If the IDE fails with `ClassNotFoundException` or `NoClassDefFoundError` for Maven dependencies like
+`org.springframework.data.jpa.repository.JpaRepository`, the app is being started with an incomplete classpath.
+Reimport the root `pom.xml` as a Maven project, then run the Spring Boot application from the Maven project or use
+one of the commands above.
 
 ### Frontend Dev Mode
 
